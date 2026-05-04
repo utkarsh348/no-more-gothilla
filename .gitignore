@@ -1,0 +1,12 @@
+.worktrees/
+node_modules/
+.next/
+out/
+.vercel/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+!.env.example
