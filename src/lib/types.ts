@@ -17,6 +17,25 @@ export type SrsItemType =
 
 export type RadioMode = "gym" | "running" | "commute" | "review" | "sleep";
 
+export type DayMilestoneMode =
+  | "commute"
+  | "running-walking"
+  | "gym"
+  | "review"
+  | "shadowing"
+  | "dojo"
+  | "mission"
+  | "business";
+
+export type DayMilestoneModule =
+  | "radio"
+  | "review"
+  | "curriculum"
+  | "shadowing"
+  | "dojo"
+  | "mission"
+  | "business";
+
 export type RadioStepKind =
   | "situation"
   | "english-prompt"
@@ -93,6 +112,10 @@ export interface SrsItem {
 export interface CurriculumDay {
   day: number;
   title: string;
+  intent: string;
+  goals: string[];
+  dailyInstruction: string;
+  milestones: DayMilestone[];
   generalFluencyTarget: string;
   nationBalance: NationStrand[];
   corePatternIds: string[];
@@ -103,6 +126,17 @@ export interface CurriculumDay {
   conversationScenarioId: string;
   missionId: string;
   businessAddonId: string;
+}
+
+export interface DayMilestone {
+  id: string;
+  mode: DayMilestoneMode;
+  title: string;
+  durationMinutes: number;
+  instruction: string;
+  actionLabel: string;
+  module: DayMilestoneModule;
+  radioMode?: RadioMode;
 }
 
 export interface RadioStep {

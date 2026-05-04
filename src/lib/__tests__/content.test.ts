@@ -45,4 +45,22 @@ describe("seed content contract", () => {
 
     expect(report.placeholderHits).toEqual([]);
   });
+
+  it("gives every day clear intent, goals, instructions, and real-world milestones", () => {
+    const report = validateContent(content);
+    const requiredModes = ["commute", "running-walking", "gym", "review", "mission"];
+
+    expect(report.ok).toBe(true);
+    for (const day of content.curriculumDays) {
+      expect(day.intent.length).toBeGreaterThan(40);
+      expect(day.goals.length).toBeGreaterThanOrEqual(3);
+      expect(day.dailyInstruction.length).toBeGreaterThan(80);
+      expect(day.dailyInstruction.toLowerCase()).toContain("gym");
+      expect(day.dailyInstruction.toLowerCase()).toContain("commute");
+      expect(day.milestones.map((milestone) => milestone.mode)).toEqual(
+        expect.arrayContaining(requiredModes),
+      );
+      expect(day.milestones.every((milestone) => milestone.instruction.length > 30)).toBe(true);
+    }
+  });
 });

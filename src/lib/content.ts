@@ -750,14 +750,138 @@ function makeWhatsAppTemplates(): WhatsAppTemplate[] {
   });
 }
 
+const dayIntents = [
+  "Build spoken Kannada confidence for opening real Bangalore conversations without freezing at the first reply.",
+  "Build spoken Kannada control for needs, refusals, prices, and small shop interactions.",
+  "Build spoken Kannada question comfort so directions, locations, and basic follow-ups feel usable.",
+  "Build spoken Kannada request rhythm for apartment, food, auto, and help conversations.",
+  "Build spoken Kannada small-talk stamina for 60 seconds of friendly relationship-building.",
+  "Build spoken Kannada work-talk comfort so you can explain software work simply and ask about their work.",
+  "Build spoken Kannada repair confidence so fast replies do not force an immediate switch to English.",
+  "Build spoken Kannada mixed-conversation endurance for three minutes of Kannada-English back-and-forth.",
+  "Build spoken Kannada business bridge skills for workshop, vendor, logistics, and workflow questions.",
+  "Build spoken Kannada final-day comfort by starting, repairing, continuing, and closing one Bangalore conversation.",
+];
+
+const dayGoals = [
+  ["Open politely", "Say your Kannada level", "Ask for slower speech", "Close without awkwardness"],
+  ["Ask for what you need", "Refuse politely", "Understand basic shop replies", "Move details to WhatsApp"],
+  ["Ask where/how/when", "Follow one simple direction", "Use repeat/slow repair", "Confirm what you understood"],
+  ["Make respectful requests", "Ask someone to show/tell/send", "Use maadi/kodi/heli naturally"],
+  ["Ask where someone is from", "Talk about area/weather/traffic", "Sustain small talk for 60 seconds"],
+  ["Explain what you do simply", "Ask what work they do", "Keep English mix controlled"],
+  ["Use repair before English", "Handle fast Kannada", "Say what you understood", "Ask for simple Kannada"],
+  ["Handle mixed Kannada-English", "Keep conversation going", "Recover from unknown words"],
+  ["Ask 3 workflow questions", "Talk Tally/Excel/WhatsApp without pitching", "Respect local business tone"],
+  ["Start in Kannada", "Repair at least once", "Complete and close politely"],
+];
+
+const dayInstructions = [
+  "Run this day in three small blocks: use the commute for slow listening, use gym time for short call-and-response, then do one desk review before trying a Kannada opening with a real person.",
+  "Use your commute for shopkeeper listening, use running or walking for easy shadowing, use gym sets for beku/beda drills, then ask one real shop question before the day ends.",
+  "Use commute time for direction dialogues, use a walk to shadow yelli/hege/eshtu questions, use gym pauses for recall, then ask someone where something is.",
+  "Use the commute for request dialogues, use gym time for maadi/kodi/heli drills, then make one real request to apartment, food, auto, or shop staff.",
+  "Use commute time for small-talk listening, use walking time to shadow friendly replies, use gym time for quick personal answers, then hold one 60-second conversation without worrying about perfect grammar.",
+  "Use the commute to hear work-talk examples, use running or walking to shadow your intro, use gym time for Naanu ___ madtini drills, then explain your work once.",
+  "Use every commute or walk today to rehearse repair moves, use gym sets for repeat/slow/simple prompts, then ask someone to repeat instead of switching immediately to English.",
+  "Use commute mode for scenario turns, use running or walking for low-load shadowing, use gym recall for repair lines, then attempt a 3-minute mixed Kannada-English conversation.",
+  "Use commute time for workshop/vendor scenarios, use gym time for workflow question drills, then ask a local business or vendor three respectful process questions.",
+  "Use the commute for final review, use walking for shadowing natural speed, use gym for fast recall, then complete one real Bangalore conversation where you start, repair, continue, and close.",
+];
+
+function makeMilestones(day: number, businessTitle: string) {
+  return [
+    {
+      id: `day-${day}-commute`,
+      mode: "commute" as const,
+      title: "Commute: hear the situation first",
+      durationMinutes: 15,
+      instruction: "Play commute mode and only focus on understanding the NPC line, the repair move, and the model reply.",
+      actionLabel: "Open Commute Radio",
+      module: "radio" as const,
+      radioMode: "commute" as const,
+    },
+    {
+      id: `day-${day}-running`,
+      mode: "running-walking" as const,
+      title: "Running or walking: shadow without typing",
+      durationMinutes: 12,
+      instruction: "Play running mode at easy effort and shadow only the key lines so rhythm improves without heavy thinking.",
+      actionLabel: "Open Running Radio",
+      module: "radio" as const,
+      radioMode: "running" as const,
+    },
+    {
+      id: `day-${day}-gym`,
+      mode: "gym" as const,
+      title: "Gym: quick recall between sets",
+      durationMinutes: 8,
+      instruction: "Use gym mode between sets: hear English, answer during the pause, then shadow the Kannada answer once.",
+      actionLabel: "Open Gym Radio",
+      module: "radio" as const,
+      radioMode: "gym" as const,
+    },
+    {
+      id: `day-${day}-review`,
+      mode: "review" as const,
+      title: "Desk review: produce before seeing",
+      durationMinutes: 10,
+      instruction: "Do the active recall review slowly: say or type the answer first, reveal it, then score honestly from 0 to 5.",
+      actionLabel: "Open Review",
+      module: "review" as const,
+    },
+    {
+      id: `day-${day}-shadowing`,
+      mode: "shadowing" as const,
+      title: "Shadowing: copy rhythm and endings",
+      durationMinutes: 8,
+      instruction: "Listen once, shadow slow, then shadow natural speed while copying respectful endings and question tone.",
+      actionLabel: "Open Shadowing",
+      module: "shadowing" as const,
+    },
+    {
+      id: `day-${day}-dojo`,
+      mode: "dojo" as const,
+      title: "Dojo: keep the conversation alive",
+      durationMinutes: 10,
+      instruction: "Answer the NPC with simple Kannada, then compare against the better simple and natural versions.",
+      actionLabel: "Open Dojo",
+      module: "dojo" as const,
+    },
+    {
+      id: `day-${day}-mission`,
+      mode: "mission" as const,
+      title: "Real world: log one attempt",
+      durationMinutes: 5,
+      instruction: "Try the day mission with a real person, then log what froze so tomorrow's SRS can bring it back.",
+      actionLabel: "Open Mission Log",
+      module: "mission" as const,
+    },
+    {
+      id: `day-${day}-business`,
+      mode: "business" as const,
+      title: `Optional business add-on: ${businessTitle}`,
+      durationMinutes: 8,
+      instruction: "Do this only after the general sprint: ask simple workflow questions and keep the tone respectful, not salesy.",
+      actionLabel: "Open Business Add-On",
+      module: "business" as const,
+    },
+  ];
+}
+
 function makeCurriculumDays(patterns: Pattern[], dialogues: Dialogue[], shadowing: ShadowingSession[], roleplays: RoleplayScenario[], businessModules: BusinessModule[]): CurriculumDay[] {
   return Array.from({ length: 10 }, (_, index) => {
     const day = index + 1;
     const dayPatterns = patterns.slice(index * 4, index * 4 + (index % 2 === 0 ? 4 : 3));
     const dayDialogues = dialogues.filter((dialogue) => dialogue.category !== "business").slice(index * 2, index * 2 + 2);
+    const businessModule = businessModules[index % businessModules.length];
     return {
       day,
       title: `Day ${day}: ${["openers", "needs", "questions", "requests", "small talk", "work talk", "repair", "mixed conversation", "business bridge", "final Bangalore conversation"][index]}`,
+      intent: dayIntents[index],
+      goals: dayGoals[index],
+      dailyInstruction: dayInstructions[index],
+      milestones: makeMilestones(day, businessModule.title),
       generalFluencyTarget:
         day < 9
           ? "Build general spoken Kannada comfort before business-specific depth."
@@ -786,7 +910,7 @@ function makeCurriculumDays(patterns: Pattern[], dialogues: Dialogue[], shadowin
       activeRecallSrsIds: [`srs-${index * 10 + 1}`, `srs-${index * 10 + 2}`, `srs-${index * 10 + 3}`],
       conversationScenarioId: roleplays[index].id,
       missionId: missions[index].id,
-      businessAddonId: businessModules[index % businessModules.length].id,
+      businessAddonId: businessModule.id,
     };
   });
 }
@@ -847,6 +971,22 @@ export function validateContent(appContent: AppContent) {
   const failures = Object.entries(requiredContentCounts)
     .filter(([key, required]) => counts[key as keyof typeof counts] < required)
     .map(([key, required]) => `${key}: ${counts[key as keyof typeof counts]} < ${required}`);
+  const requiredMilestoneModes = ["commute", "running-walking", "gym", "review", "mission"];
+  for (const day of appContent.curriculumDays) {
+    const dayFailures = [
+      !day.intent || day.intent.length < 40 ? "intent missing or too short" : "",
+      day.goals.length < 3 ? "fewer than 3 goals" : "",
+      !day.dailyInstruction || day.dailyInstruction.length < 80 ? "daily instruction missing or too short" : "",
+      day.dailyInstruction === day.generalFluencyTarget ? "daily instruction is generic target copy" : "",
+      ...requiredMilestoneModes
+        .filter((mode) => !day.milestones.some((milestone) => milestone.mode === mode))
+        .map((mode) => `missing ${mode} milestone`),
+      day.milestones.some((milestone) => milestone.instruction.length < 30)
+        ? "milestone instruction too short"
+        : "",
+    ].filter(Boolean);
+    failures.push(...dayFailures.map((failure) => `day ${day.day}: ${failure}`));
+  }
   const allText = JSON.stringify(appContent).toLowerCase();
   const placeholderHits = ["todo", "lorem", "dummy"].filter((term) => allText.includes(term));
   return {

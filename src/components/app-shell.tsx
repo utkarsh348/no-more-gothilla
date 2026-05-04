@@ -2,22 +2,24 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { content } from "@/lib/content";
+import { getDayPlan } from "@/lib/day-plan";
 import { missionLogToSrsItems } from "@/lib/mission";
 import { buildRadioQueue, scriptToSpeakableText } from "@/lib/radio";
 import { createInitialProgress, loadProgress, saveProgress } from "@/lib/progress";
 import { evaluateScriptedReply } from "@/lib/roleplay";
 import { calculateWeakTags, getDueItems, reviewSrsItem } from "@/lib/srs";
 import type {
-  CurriculumDay,
+  DayMilestone,
   MissionLog,
   RadioMode,
   RoleplayEvaluation,
   UserProgress,
 } from "@/lib/types";
+import type { DayPlan } from "@/lib/day-plan";
 
 type Screen =
-  | "Dashboard"
-  | "Today"
+  | "Command Center"
+  | "Curriculum"
   | "Kannada Radio"
   | "Review"
   | "Listening"
@@ -30,8 +32,8 @@ type Screen =
   | "Progress";
 
 const screens: Screen[] = [
-  "Dashboard",
-  "Today",
+  "Command Center",
+  "Curriculum",
   "Kannada Radio",
   "Review",
   "Listening",
@@ -152,26 +154,36 @@ function speak(text: string, rate = 0.88) {
   window.speechSynthesis.speak(utterance);
 }
 
-function currentDay(progress: UserProgress): CurriculumDay {
-  const dayNumber = progress.currentDay;
-  return content.curriculumDays.find((day) => day.day === dayNumber) ?? content.curriculumDays[0];
-}
-
 export function AppShell() {
-  const [screen, setScreen] = useState<Screen>("Dashboard");
   const [progress, updateProgress] = useProgress();
-  const day = currentDay(progress);
+  const [screen, setScreen] = useState<Screen>("Command Center");
+  const [selectedDayNumber, setSelectedDayNumber] = useState(progress.currentDay);
+  const [radioMode, setRadioMode] = useState<RadioMode>("gym");
+  const dayPlan = useMemo(() => getDayPlan(content, selectedDayNumber), [selectedDayNumber]);
   const dueItems = useMemo(
-    () => getDueItems(progress?.srsItems ?? content.srsItems, new Date()),
-    [progress?.srsItems],
+    () => getDueItems(progress.srsItems, new Date()),
+    [progress.srsItems],
   );
 
   const dashboardProgress = progress;
   const weakGrammar = calculateWeakTags(progress.srsItems).slice(0, 3);
+  const openMilestone = (milestone: DayMilestone) => {
+    if (milestone.radioMode) setRadioMode(milestone.radioMode);
+    const target: Record<DayMilestone["module"], Screen> = {
+      radio: "Kannada Radio",
+      review: "Review",
+      curriculum: "Curriculum",
+      shadowing: "Shadowing",
+      dojo: "Conversation Dojo",
+      mission: "Mission Log",
+      business: "Business Context Pack",
+    };
+    setScreen(target[milestone.module]);
+  };
 
   return (
     <main className="mx-auto min-h-screen max-w-4xl bg-[#fafafa]">
-      <header className="sticky top-0 z-10 border-b border-[#dedede] bg-[#fafafa]">
+      <header className="border-b border-[#dedede] bg-[#fafafa]">
         <div className="px-4 py-4">
           <p className="text-xs uppercase tracking-wide text-[#666666]">
             No install. Safari ready. Audio first.
@@ -181,6 +193,20 @@ export function AppShell() {
             10 days toward functional spoken Kannada comfort for Bangalore life, not a true fluency claim.
           </p>
         </div>
+      </header>
+
+      <div className="space-y-4 p-4">
+        <SprintMap
+          progress={dashboardProgress}
+          selectedDay={selectedDayNumber}
+          dueItems={dueItems}
+          onSelectDay={(dayNumber) => {
+            setSelectedDayNumber(dayNumber);
+            setScreen("Command Center");
+          }}
+        />
+
+        <Panel title={`Selected Day Tools: ${dayPlan.day.title}`}>
         <nav className="flex gap-2 overflow-x-auto px-4 pb-3">
           {screens.map((item) => (
             <button
@@ -197,27 +223,36 @@ export function AppShell() {
             </button>
           ))}
         </nav>
-      </header>
+        </Panel>
 
-      <div className="space-y-4 p-4">
-        {screen === "Dashboard" && (
-          <Dashboard
+        {screen === "Command Center" && (
+          <DayCommandCenter
             progress={dashboardProgress}
-            day={day}
+            dayPlan={dayPlan}
             dueCount={dueItems.length}
             weakGrammar={weakGrammar}
             setScreen={setScreen}
+            openMilestone={openMilestone}
+            updateProgress={updateProgress}
           />
         )}
-        {screen === "Today" && <Today day={day} updateProgress={updateProgress} />}
-        {screen === "Kannada Radio" && <KannadaRadio day={day} progress={dashboardProgress} updateProgress={updateProgress} />}
-        {screen === "Review" && <Review dueItems={dueItems} updateProgress={updateProgress} />}
-        {screen === "Listening" && <Listening />}
-        {screen === "Shadowing" && <Shadowing updateProgress={updateProgress} />}
-        {screen === "Conversation Dojo" && <ConversationDojo />}
+        {screen === "Curriculum" && <Curriculum dayPlan={dayPlan} updateProgress={updateProgress} />}
+        {screen === "Kannada Radio" && (
+          <KannadaRadio
+            dayPlan={dayPlan}
+            mode={radioMode}
+            setMode={setRadioMode}
+            progress={dashboardProgress}
+            updateProgress={updateProgress}
+          />
+        )}
+        {screen === "Review" && <Review dueItems={dueItems} dayReviewItems={dayPlan.reviewItems} updateProgress={updateProgress} />}
+        {screen === "Listening" && <Listening dayPlan={dayPlan} />}
+        {screen === "Shadowing" && <Shadowing dayPlan={dayPlan} updateProgress={updateProgress} />}
+        {screen === "Conversation Dojo" && <ConversationDojo dayPlan={dayPlan} />}
         {screen === "Grammar Without Grammar" && <Grammar />}
-        {screen === "Mission Log" && <MissionLogView day={day} updateProgress={updateProgress} />}
-        {screen === "Business Context Pack" && <BusinessPack />}
+        {screen === "Mission Log" && <MissionLogView dayPlan={dayPlan} updateProgress={updateProgress} />}
+        {screen === "Business Context Pack" && <BusinessPack dayPlan={dayPlan} />}
         {screen === "WhatsApp Companion" && <WhatsAppCompanion />}
         {screen === "Progress" && <ProgressView progress={dashboardProgress} />}
       </div>
@@ -225,48 +260,55 @@ export function AppShell() {
   );
 }
 
-function Dashboard({
+function SprintMap({
   progress,
-  day,
-  dueCount,
-  weakGrammar,
-  setScreen,
+  selectedDay,
+  dueItems,
+  onSelectDay,
 }: {
   progress: UserProgress;
-  day: CurriculumDay;
-  dueCount: number;
-  weakGrammar: string[];
-  setScreen: (screen: Screen) => void;
+  selectedDay: number;
+  dueItems: UserProgress["srsItems"];
+  onSelectDay: (dayNumber: number) => void;
 }) {
   return (
-    <>
-      <Panel
-        title="What To Do Next"
-        action={<Button onClick={() => setScreen("Today")}>Start Today</Button>}
-      >
-        <p className="text-lg font-semibold">{day.title}</p>
-        <p className="mt-2 text-sm text-[#444444]">{day.generalFluencyTarget}</p>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Metric label="Day" value={`${day.day}/10`} />
-          <Metric label="Due SRS" value={dueCount} />
-          <Metric label="Readiness" value={`${progress.scores.conversationReadiness}%`} />
-          <Metric label="Field score" value={`${progress.scores.fieldBusinessComfort}%`} />
-        </div>
-      </Panel>
-
-      <Panel title="Progress Signals">
-        <div className="grid grid-cols-3 gap-3">
-          <Metric label="Listening min" value={progress.minutes.listening} />
-          <Metric label="Speaking min" value={progress.minutes.speaking} />
-          <Metric label="Shadow min" value={progress.minutes.shadowing} />
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <List title="Weak grammar" items={weakGrammar.length ? weakGrammar : progress.weakGrammarPatterns} />
-          <List title="Weak listening" items={progress.weakListeningAreas} />
-          <List title="Weak scenarios" items={progress.weakRealLifeScenarios} />
-        </div>
-      </Panel>
-    </>
+    <Panel title="Sprint Map: Pick Any Day">
+      <p className="mb-4 text-sm text-[#444444]">
+        Start anywhere. The recommended day is based on progress, but every day can be opened directly.
+      </p>
+      <div className="space-y-2">
+        {content.curriculumDays.map((day) => {
+          const status = progress.completedDays.includes(day.day)
+            ? "done"
+            : day.day === progress.currentDay
+              ? "recommended"
+              : "open";
+          const dayDueCount = dueItems.filter((item) => item.firstSeenDay === day.day).length;
+          return (
+            <div
+              key={day.day}
+              className={classNames(
+                "border bg-white p-3",
+                selectedDay === day.day ? "border-[#111111]" : "border-[#dedede]",
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-[#666666]">
+                    Day {day.day} · {status} · {dayDueCount} due
+                  </p>
+                  <h2 className="mt-1 text-base font-semibold">{day.title}</h2>
+                  <p className="mt-1 text-sm text-[#444444]">{day.intent}</p>
+                </div>
+                <Button variant={selectedDay === day.day ? "primary" : "secondary"} onClick={() => onSelectDay(day.day)}>
+                  Open Day
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Panel>
   );
 }
 
@@ -285,28 +327,35 @@ function List({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function Today({
-  day,
+function DayCommandCenter({
+  progress,
+  dayPlan,
+  dueCount,
+  weakGrammar,
+  setScreen,
+  openMilestone,
   updateProgress,
 }: {
-  day: CurriculumDay;
+  progress: UserProgress;
+  dayPlan: DayPlan;
+  dueCount: number;
+  weakGrammar: string[];
+  setScreen: (screen: Screen) => void;
+  openMilestone: (milestone: DayMilestone) => void;
   updateProgress: (updater: (current: UserProgress) => UserProgress) => void;
 }) {
-  const patterns = content.patterns.filter((pattern) => day.corePatternIds.includes(pattern.id));
-  const dialogues = content.dialogues.filter((dialogue) => day.listeningDialogueIds.includes(dialogue.id));
-  const mission = content.missions.find((item) => item.id === day.missionId);
-  const business = content.businessModules.find((item) => item.id === day.businessAddonId);
+  const { day } = dayPlan;
 
   return (
     <Panel
-      title="Today Sprint"
+      title="Day Command Center"
       action={
         <Button
           onClick={() =>
             updateProgress((current) => ({
               ...current,
               completedDays: Array.from(new Set([...current.completedDays, day.day])),
-              currentDay: Math.min(10, day.day + 1),
+              currentDay: Math.max(current.currentDay, Math.min(10, day.day + 1)),
               scores: {
                 conversationReadiness: Math.min(100, current.scores.conversationReadiness + 8),
                 fieldBusinessComfort: Math.min(100, current.scores.fieldBusinessComfort + 4),
@@ -319,38 +368,175 @@ function Today({
       }
     >
       <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold">{day.title}</h3>
-          <p className="mt-1 text-sm text-[#444444]">{day.generalFluencyTarget}</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Metric label="Selected day" value={`${day.day}/10`} />
+          <Metric label="Due SRS" value={dueCount} />
+          <Metric label="Readiness" value={`${progress.scores.conversationReadiness}%`} />
+          <Metric label="Field score" value={`${progress.scores.fieldBusinessComfort}%`} />
         </div>
-        <List title="Core patterns" items={patterns.map((pattern) => pattern.form)} />
-        <List title="Pronunciation / rhythm" items={[day.pronunciationFocus]} />
-        <List title="Listening dialogues" items={dialogues.map((dialogue) => dialogue.title)} />
-        <List title="Mission" items={mission ? [mission.task] : []} />
-        <List title="Optional business add-on" items={business ? [business.title, business.goal] : []} />
+
+        <SectionIntro title="Intent" description={day.intent} />
+        <InstructionList title="Goals" description="Use these as your finish line for the day." items={day.goals} />
+        <SectionIntro title="How To Run This Day" description={day.dailyInstruction} />
+
+        <div>
+          <h3 className="mb-2 text-sm font-semibold">Milestones</h3>
+          <p className="mb-3 text-sm text-[#444444]">
+            Finish these in the life slot where they fit: commute, running or walking, gym, desk review, and one real-world attempt.
+          </p>
+          <div className="space-y-2">
+            {day.milestones.map((milestone) => (
+              <div key={milestone.id} className="border border-[#dedede] bg-white p-3">
+                <p className="text-xs uppercase tracking-wide text-[#666666]">
+                  {milestone.mode} · {milestone.durationMinutes} min
+                </p>
+                <h4 className="mt-1 font-semibold">{milestone.title}</h4>
+                <p className="mt-1 text-sm text-[#444444]">{milestone.instruction}</p>
+                <div className="mt-3">
+                  <Button variant="secondary" onClick={() => openMilestone(milestone)}>
+                    {milestone.actionLabel}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <InstructionList
+          title="Curriculum"
+          description="These are the exact day-specific pieces behind the milestones."
+          items={[
+            `${dayPlan.patterns.length} patterns to generate sentences`,
+            `${dayPlan.dialogues.length} listening dialogues`,
+            `Shadowing: ${dayPlan.shadowing.title}`,
+            `Dojo: ${dayPlan.roleplay.title}`,
+            `Mission: ${dayPlan.mission.task}`,
+            `Optional business: ${dayPlan.businessModule.title}`,
+          ]}
+        />
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <List title="Weak grammar" items={weakGrammar.length ? weakGrammar : progress.weakGrammarPatterns} />
+          <List title="Weak listening" items={progress.weakListeningAreas} />
+          <List title="Weak scenarios" items={progress.weakRealLifeScenarios} />
+        </div>
+        <Button variant="secondary" onClick={() => setScreen("Curriculum")}>
+          Open Full Curriculum
+        </Button>
+      </div>
+    </Panel>
+  );
+}
+
+function SectionIntro({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="border border-[#dedede] bg-white p-3">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="mt-1 text-sm text-[#444444]">{description}</p>
+    </div>
+  );
+}
+
+function InstructionList({
+  title,
+  description,
+  items,
+}: {
+  title: string;
+  description: string;
+  items: string[];
+}) {
+  return (
+    <div>
+      <h3 className="mb-1 text-sm font-semibold">{title}</h3>
+      <p className="mb-2 text-sm text-[#444444]">{description}</p>
+      <ul className="divide-y divide-[#dedede] border border-[#dedede] bg-white">
+        {items.map((item) => (
+          <li key={item} className="px-3 py-2 text-sm">
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function Curriculum({
+  dayPlan,
+  updateProgress,
+}: {
+  dayPlan: DayPlan;
+  updateProgress: (updater: (current: UserProgress) => UserProgress) => void;
+}) {
+  const { day } = dayPlan;
+
+  return (
+    <Panel
+      title={`Curriculum: ${day.title}`}
+      action={
+        <Button
+          onClick={() =>
+            updateProgress((current) => ({
+              ...current,
+              completedSprints: Array.from(new Set([...current.completedSprints, `day-${day.day}-curriculum`])),
+            }))
+          }
+        >
+          Mark Curriculum Done
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <SectionIntro title="Intent" description={day.intent} />
+        <InstructionList
+          title="Patterns To Generate Sentences With"
+          description="Say each pattern aloud, then swap the noun or action so it becomes flexible speech."
+          items={dayPlan.patterns.map((pattern) => `${pattern.form}: ${pattern.explanation}`)}
+        />
+        <InstructionList
+          title="Listening Dialogues To Understand"
+          description="Listen for meaning first, then shadow one useful line from each dialogue."
+          items={dayPlan.dialogues.map((dialogue) => dialogue.title)}
+        />
+        <InstructionList
+          title="Active Recall Items To Produce"
+          description="Try to answer before revealing. Slow understandable Kannada scores better than silent recognition."
+          items={dayPlan.reviewItems.map((item) => item.prompt)}
+        />
+        <InstructionList
+          title="Mission And Optional Business Add-On"
+          description="Do the mission for general comfort first; business remains secondary."
+          items={[dayPlan.mission.task, `Optional: ${dayPlan.businessModule.title}`]}
+        />
       </div>
     </Panel>
   );
 }
 
 function KannadaRadio({
-  day,
+  dayPlan,
+  mode,
+  setMode,
   progress,
   updateProgress,
 }: {
-  day: CurriculumDay;
+  dayPlan: DayPlan;
+  mode: RadioMode;
+  setMode: (mode: RadioMode) => void;
   progress: UserProgress;
   updateProgress: (updater: (current: UserProgress) => UserProgress) => void;
 }) {
-  const [mode, setMode] = useState<RadioMode>("gym");
   const script =
-    content.radioScripts.find((item) => item.day === day.day && item.mode === mode) ??
+    dayPlan.radioScripts[mode] ??
     content.radioScripts.find((item) => item.mode === mode) ??
     content.radioScripts[0];
   const queue = buildRadioQueue(script);
 
   return (
-    <Panel title="Kannada Radio">
+    <Panel title={`Kannada Radio: ${dayPlan.day.title}`}>
+      <p className="mb-4 text-sm text-[#444444]">
+        Pick the life slot you are in now. This radio script is scoped to the selected day.
+      </p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {(["gym", "running", "commute", "review", "sleep"] as RadioMode[]).map((item) => (
           <Button key={item} variant={mode === item ? "primary" : "secondary"} onClick={() => setMode(item)}>
@@ -399,20 +585,25 @@ function KannadaRadio({
 
 function Review({
   dueItems,
+  dayReviewItems,
   updateProgress,
 }: {
   dueItems: UserProgress["srsItems"];
+  dayReviewItems: UserProgress["srsItems"];
   updateProgress: (updater: (current: UserProgress) => UserProgress) => void;
 }) {
-  const item = dueItems[0];
+  const item = dueItems[0] ?? dayReviewItems[0];
   const [showAnswer, setShowAnswer] = useState(false);
 
   if (!item) {
-    return <Panel title="Review">No SRS items are due right now. Kannada Radio review mode will pick them up later.</Panel>;
+    return <Panel title="Review">No SRS items are available right now. Kannada Radio review mode will pick them up later.</Panel>;
   }
 
   return (
-    <Panel title="Active Recall Review">
+    <Panel title="Selected Day Active Recall">
+      <p className="mb-4 text-sm text-[#444444]">
+        Produce the answer before revealing it. Due SRS appears first; selected-day recall fills the gap.
+      </p>
       <p className="text-xs uppercase tracking-wide text-[#666666]">{item.type}</p>
       <h3 className="mt-2 text-lg font-semibold">{item.prompt}</h3>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -450,12 +641,17 @@ function Review({
   );
 }
 
-function Listening() {
+function Listening({ dayPlan }: { dayPlan: DayPlan }) {
   const [category, setCategory] = useState<"all" | "everyday" | "bangalore-local" | "business">("all");
   const dialogues = content.dialogues.filter((dialogue) => category === "all" || dialogue.category === category);
 
   return (
     <Panel title="Listening Library">
+      <InstructionList
+        title="Selected Day Listening"
+        description="Start here before browsing the full library. Understand meaning first; shadow only after it feels familiar."
+        items={dayPlan.dialogues.map((dialogue) => dialogue.title)}
+      />
       <select className="mb-4 w-full border border-[#dedede] bg-white p-3" value={category} onChange={(event) => setCategory(event.target.value as typeof category)}>
         <option value="all">All categories</option>
         <option value="everyday">Everyday</option>
@@ -485,15 +681,19 @@ function Listening() {
 }
 
 function Shadowing({
+  dayPlan,
   updateProgress,
 }: {
+  dayPlan: DayPlan;
   updateProgress: (updater: (current: UserProgress) => UserProgress) => void;
 }) {
-  const [sessionIndex, setSessionIndex] = useState(0);
-  const session = content.shadowingSessions[sessionIndex];
+  const session = dayPlan.shadowing;
 
   return (
-    <Panel title="Shadowing Trainer">
+    <Panel title={`Shadowing Trainer: ${dayPlan.day.title}`}>
+      <p className="mb-4 text-sm text-[#444444]">
+        This is the selected day shadowing session. Copy rhythm, endings, and question tone; do not worry about speech recognition.
+      </p>
       <h3 className="text-lg font-semibold">{session.title}</h3>
       <p className="mt-1 text-sm text-[#444444]">Focus: {session.focus.join(", ")}</p>
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -515,7 +715,6 @@ function Shadowing({
               ...current,
               minutes: { ...current.minutes, shadowing: current.minutes.shadowing + 8 },
             }));
-            setSessionIndex((value) => (value + 1) % content.shadowingSessions.length);
           }}
         >
           Self-Rate And Continue
@@ -525,22 +724,17 @@ function Shadowing({
   );
 }
 
-function ConversationDojo() {
-  const [track, setTrack] = useState<"general" | "repair" | "business">("general");
+function ConversationDojo({ dayPlan }: { dayPlan: DayPlan }) {
   const [reply, setReply] = useState("");
   const [evaluation, setEvaluation] = useState<RoleplayEvaluation | null>(null);
-  const scenario = content.roleplays.find((item) => item.track === track) ?? content.roleplays[0];
+  const scenario = dayPlan.roleplay;
   const turn = scenario.turns[0];
 
   return (
-    <Panel title="Conversation Dojo">
-      <div className="grid grid-cols-3 gap-2">
-        {(["general", "repair", "business"] as const).map((item) => (
-          <Button key={item} variant={track === item ? "primary" : "secondary"} onClick={() => setTrack(item)}>
-            {item}
-          </Button>
-        ))}
-      </div>
+    <Panel title={`Conversation Dojo: ${dayPlan.day.title}`}>
+      <p className="mb-4 text-sm text-[#444444]">
+        This scenario is selected for the day. Reply simply, then use feedback to keep the next turn alive.
+      </p>
       <div className="mt-4 border border-[#dedede] bg-white p-4">
         <p className="text-xs uppercase tracking-wide text-[#666666]">{scenario.setting}</p>
         <h3 className="mt-1 text-lg font-semibold">{scenario.title}</h3>
@@ -602,13 +796,13 @@ function Grammar() {
 }
 
 function MissionLogView({
-  day,
+  dayPlan,
   updateProgress,
 }: {
-  day: CurriculumDay;
+  dayPlan: DayPlan;
   updateProgress: (updater: (current: UserProgress) => UserProgress) => void;
 }) {
-  const mission = content.missions.find((item) => item.id === day.missionId) ?? content.missions[0];
+  const mission = dayPlan.mission;
   const [form, setForm] = useState({
     person: "",
     said: "",
@@ -660,12 +854,19 @@ function MissionLogView({
   );
 }
 
-function BusinessPack() {
+function BusinessPack({ dayPlan }: { dayPlan: DayPlan }) {
+  const selectedModule = dayPlan.businessModule;
   return (
     <Panel title="Business Context Pack">
       <p className="mb-4 text-sm text-[#444444]">
         This is separate from core fluency. Use it after the daily general sprint, not instead of it.
       </p>
+      <div className="mb-4 border border-[#111111] bg-white p-4">
+        <p className="text-xs uppercase tracking-wide text-[#666666]">Selected day optional add-on</p>
+        <h3 className="mt-1 font-semibold">{selectedModule.title}</h3>
+        <p className="mt-1 text-sm text-[#444444]">{selectedModule.goal}</p>
+        <List title="Use these after general practice" items={selectedModule.simpleKannadaLines} />
+      </div>
       <div className="space-y-3">
         {content.businessModules.map((module) => (
           <div key={module.id} className="border border-[#dedede] bg-white p-4">
