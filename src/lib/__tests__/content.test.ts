@@ -1,0 +1,48 @@
+import { describe, expect, it } from "vitest";
+import { content, requiredContentCounts, validateContent } from "@/lib/content";
+
+describe("seed content contract", () => {
+  it("meets every requested minimum content count", () => {
+    const report = validateContent(content);
+
+    expect(report.ok).toBe(true);
+    expect(report.counts.curriculumDays).toBe(requiredContentCounts.curriculumDays);
+    expect(report.counts.patterns).toBeGreaterThanOrEqual(requiredContentCounts.patterns);
+    expect(report.counts.productionPrompts).toBeGreaterThanOrEqual(
+      requiredContentCounts.productionPrompts,
+    );
+    expect(report.counts.generalDialogues).toBeGreaterThanOrEqual(
+      requiredContentCounts.generalDialogues,
+    );
+    expect(report.counts.businessDialogues).toBeGreaterThanOrEqual(
+      requiredContentCounts.businessDialogues,
+    );
+    expect(report.counts.srsItems).toBeGreaterThanOrEqual(requiredContentCounts.srsItems);
+    expect(report.counts.gymScripts).toBe(requiredContentCounts.gymScripts);
+    expect(report.counts.runningScripts).toBe(requiredContentCounts.runningScripts);
+    expect(report.counts.commuteScripts).toBe(requiredContentCounts.commuteScripts);
+  });
+
+  it("contains named Bangalore and business-context coverage", () => {
+    const allText = JSON.stringify(content).toLowerCase();
+
+    for (const term of [
+      "whitefield",
+      "hoskote",
+      "peenya",
+      "bommasandra",
+      "tally",
+      "whatsapp",
+      "workshop",
+      "dispatch",
+    ]) {
+      expect(allText).toContain(term);
+    }
+  });
+
+  it("does not ship placeholder-only content", () => {
+    const report = validateContent(content);
+
+    expect(report.placeholderHits).toEqual([]);
+  });
+});
